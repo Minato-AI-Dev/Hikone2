@@ -1,0 +1,23 @@
+name: Hikone2 live API isolation smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify live Hikone2 page and fail-closed APIs
+        run: node scripts/live-smoke.mjs
+        env:
+          HIKONE2_LIVE_URL: https://hikone2.vercel.app
