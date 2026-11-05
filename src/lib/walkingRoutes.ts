@@ -1,0 +1,43 @@
+import type { Answers, HistoryState } from '../types';
+import { nodeById } from '../data/dbV4';
+import { recommend, routingCandidateIds, type RoutedLegs } from './recommend';
+import { adjustedMinutes } from './walkingModel';
+
+export type AutoRouteResult={recommendations:ReturnType<typeof recommend>;source:'maps'|'measured'|'demo'|'unavailable';warning:string};
+export async function autoRecommend(answers:Answers,history:HistoryState|null,_originGps?:{lat:number;lng:number}|null,signal?:AbortSignal):Promise<AutoRouteResult> {
+  const fallback=(message:string):AutoRouteResult=>{
+    const demo=import.meta.env.VITE_ROUTING_DEMO==='true';
+    const recommendations=recommend(answers,history,undefined,demo?'demo':'measured');
+    return {recommendations,source:demo?'demo':recommendations.length?'measured':'unavailable',warning:message+(demo?' 以下は現地未検証のデモです。移動前にGoogle Mapsで確認してください。':recommendations.length?' 現地実測の区間を基準とした目安を表示します。':' 信頼できる徒歩時間が揃わないため、時間内に行ける候補は表示できません。Google Mapsで確認してください。')};
+  };
+  if(!nodeById(answers.currentNodeId)||!nodeById(answers.finalNodeId)||!Number.isFinite(answers.remainingTimeMin)||answers.remainingTimeMin<0)
+    return {recommendations:[],source:'unavailable',warning:'出発地・帰着地・残り時間を確認してください。'};
+  const candidates=routingCandidateIds(answers,history);
+  if(!candidates.length)return {recommendations:[],source:'unavailable',warning:'現在の条件に合う候補がありません。'};
+  const endpoint=import.meta.env.VITE_WALKING_ROUTE_ENDPOINT?.trim() || (import.meta.env.DEV?'/api/walking-routes':'');
+  if(!endpoint)return fallback('現在、徒歩経路を取得できません。');
+  const pairs=[{from:answers.currentNodeId,to:answers.finalNodeId},...candidates.flatMap(id=>[{from:answers.currentNodeId,to:id},{from:id,to:answers.finalNodeId}])].filter(p=>p.from!==p.to);
+  const unique=[...new Map(pairs.map(p=>[p.from+'>'+p.to,p])).values()];
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
+  const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
+  try {
+    // Send only repository IDs. GPS and client-provided addresses are never included.
+    const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairs:unique}),signal:controller.signal});
+    if(response.status===429)return fallback('現在、経路案内が混み合っています。時間をおいてお試しください。');
+    if(!response.ok)throw new Error('Routing unavailable');
+    const data=await response.json();
+    if(!data||typeof data.legs!=='object'||!data.legs||Array.isArray(data.legs))throw new Error('Invalid routes');
+    const routed:RoutedLegs={};
+    for(const p of unique) {
+      const key=p.from+'>'+p.to,leg=data.legs[key];
+      if(!leg||typeof leg.seconds!=='number'||typeof leg.meters!=='number'||!Number.isFinite(leg.seconds)||!Number.isFinite(leg.meters)||leg.seconds<=0||leg.meters<=0||leg.seconds>86400||leg.meters>100000)continue;
+      routed[key]={minutes:adjustedMinutes(leg.seconds,answers),distance:Math.round(leg.meters)};
+    }
+    if(answers.currentNodeId!==answers.finalNodeId&&!routed[answers.currentNodeId+'>'+answers.finalNodeId])throw new Error('Missing direct route');
+    const partial=Object.keys(routed).length<unique.length;
+    return {recommendations:recommend(answers,history,routed),source:'maps',warning:'移動時間はGoogle Mapsの目安です。天候や道の状況に合わせて、余裕をもってお出かけください。'+(partial?' 一部の経路を取得できず、候補を省略しました。':'')};
+  } catch {
+    if(signal?.aborted)return {recommendations:[],source:'unavailable',warning:''};
+    return fallback('現在、徒歩経路を取得できません。');
+  } finally {clearTimeout(timer);signal?.removeEventListener('abort',cancel);}
+}
