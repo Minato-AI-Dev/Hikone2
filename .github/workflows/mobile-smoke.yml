@@ -29,3 +29,5 @@ jobs:
           VERCEL: '1'
       - name: Run mobile-device-emulation smoke checks
         run: node scripts/mobile-smoke.mjs
+        env:
+          VERCEL: '1'
