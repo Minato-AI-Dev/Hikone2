@@ -25,7 +25,7 @@ try{
  const page=await context.newPage();
  const errors=[];
  page.on('pageerror',e=>errors.push(e.message));
- const assert=async(locator,what)=>{if(!await locator.isVisible())throw Error('Not visible: '+what)};
+ const assert=async(locator,what)=>{if(!await locator.isVisible()){const headings=await page.locator('h1,h2').allTextContents();const text=await page.locator('body').innerText();throw Error('Not visible: '+what+'; headings='+JSON.stringify(headings)+'; errors='+JSON.stringify(errors)+'; body='+text.slice(0,500)+'; url='+page.url())}};
  await page.goto(target,{waitUntil:'networkidle'});
  await assert(page.getByRole('heading',{name:/調査に.*協力しますか/}),'research consent');
  await page.getByRole('button',{name:'協力せずにはじめる'}).click();
