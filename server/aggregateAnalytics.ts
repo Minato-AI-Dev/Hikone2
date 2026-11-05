@@ -46,7 +46,7 @@ export function analyticsTestRun():string|null {
 }
 export function analyticsPrefix():string {
   const run=analyticsTestRun();
-  return run?'hikone:aggregate:test:v1:'+run:'hikone:aggregate:v1';
+  return run?'hikone2:aggregate:test:v1:'+run:'hikone2:aggregate:v1';
 }
 export const metricKey=(day:string,event:AggregateEvent)=>analyticsPrefix()+':'+day+':'+event;
 export async function incrementMetric(day:string,event:AggregateEvent):Promise<unknown> {

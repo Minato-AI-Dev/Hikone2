@@ -36,7 +36,7 @@ try{
  if(japanSecond<60||japanSecond>86280)throw new Error('Retry away from Japan midnight');
  const before=await readReport();
  check(Object.keys(before).length===18&&Object.values(before).every(n=>n===0),'Test run must be new and empty');
- const researchKeys=AGGREGATE_EVENTS.map(event=>'hikone:aggregate:v1:'+day+':'+event);
+ const researchKeys=AGGREGATE_EVENTS.map(event=>'hikone2:aggregate:v1:'+day+':'+event);
  const beforeResearch=await redisCommand(['MGET',...researchKeys]);
  const submitted=['recommendation_viewed','recommendation_selected','experience_completed'];
  touchedDays.add(day);cleanupRequired=true;

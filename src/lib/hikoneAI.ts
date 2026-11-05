@@ -6,7 +6,7 @@ export type AIUnderstandResult={answers:Partial<Answers>;message:string;source:A
 export type AIPresentationResult={intro:string;reasons:Record<string,string>;source:AIBackendSource};
 
 async function postJson<T>(body:unknown,signal?:AbortSignal):Promise<T>{
- const endpoint=import.meta.env.VITE_HIKONE_AI_ENDPOINT?.trim()||(import.meta.env.DEV?'/api/hikone-ai':'');
+ const endpoint=import.meta.env.VITE_HIKONE_AI_ENDPOINT?.trim()||(import.meta.env.DEV||import.meta.env.BASE_URL==='/'?'/api/hikone-ai':'');
  if(!endpoint)throw new Error('AI not configured');
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),18000),cancel=()=>controller.abort();
  signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();

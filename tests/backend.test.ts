@@ -42,7 +42,7 @@ it('hashes the IP in atomic store command and reserves units',async()=>{await re
 it('reserves a bounded shared daily budget as well as minute limits',async()=>{
   await reserveBudget(req(),'routes',17);
   const body=JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string);
-  expect(body[2]).toBe(3);expect(body[5]).toMatch(/^hikone:routes:day:/);
+  expect(body[2]).toBe(3);expect(body[5]).toMatch(/^hikone2:routes:day:/);
   expect(body.slice(-4)).toEqual([6,120,300,17]);
 });
 it('accepts native Vercel Marketplace Redis variables',async()=>{

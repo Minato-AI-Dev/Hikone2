@@ -8,6 +8,6 @@ describe('consented aggregate analytics',()=>{
  });
  it('groups by Japan calendar day',()=>{
   expect(dayInTokyo(new Date('2026-10-26T16:00:00Z'))).toBe('2026-10-27');
-  expect(metricKey('2026-10-27','experience_completed')).toBe('hikone:aggregate:v1:2026-10-27:experience_completed');
+  expect(metricKey('2026-10-27','experience_completed')).toBe('hikone2:aggregate:v1:2026-10-27:experience_completed');
  });
 });

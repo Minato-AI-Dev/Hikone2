@@ -28,7 +28,7 @@ export async function reserveBudget(req:ApiRequest,service:'routes'|'ai'|'analyt
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),2000);
   try {
     // Keep route/AI and production limiter keys unchanged.
-    const prefix=(service==='analytics'||service==='report')&&analyticsTestRun()?analyticsPrefix()+':limit'+(service==='report'?':report':''):`hikone:${service}`;
+    const prefix=(service==='analytics'||service==='report')&&analyticsTestRun()?analyticsPrefix()+':limit'+(service==='report'?':report':''):`hikone2:${service}`;
     const response=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},signal:controller.signal,
       body:JSON.stringify(['EVAL',script,3,`${prefix}:ip:${minute}:${identity}`,`${prefix}:global:${minute}`,`${prefix}:day:${day}`,service==='routes'?6:service==='shops'?6:service==='analytics'?15:service==='report'?60:4,service==='routes'?routeMinute:service==='shops'?60:service==='analytics'?400:service==='report'?300:30,service==='routes'?routeDaily:service==='shops'?250:service==='analytics'?3000:service==='report'?5000:50,units])});
     if(!response.ok)return 'unavailable';

@@ -65,7 +65,7 @@ export function track(event:AnalyticsEvent, data:Record<string,unknown>={}):void
 
 function sendAggregateEvent(event:AnalyticsEvent):void {
   if(collectionEnded||!hasAnalyticsConsent()||!AGGREGATE_EVENTS.has(event))return;
-  const endpoint=import.meta.env.VITE_ANALYTICS_COLLECT_ENDPOINT?.trim() || (import.meta.env.DEV?'/api/analytics-collect':'');
+  const endpoint=import.meta.env.VITE_ANALYTICS_COLLECT_ENDPOINT?.trim() || (import.meta.env.DEV||import.meta.env.BASE_URL==='/'?'/api/analytics-collect':'');
   if(!endpoint)return;
   // No raw details, identifying IDs, GPS or free-form content leave the browser.
   void fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event}),keepalive:true})

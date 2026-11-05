@@ -4,10 +4,20 @@ export function header(req:ApiRequest,name:string):string { const v=req.headers[
 export function isRecord(v:unknown):v is Record<string,unknown> { return typeof v==='object'&&v!==null&&!Array.isArray(v); }
 export function prepareJson(req:ApiRequest,res:ApiResponse):boolean {
   res.setHeader('Cache-Control','no-store');res.setHeader('Vary','Origin');res.setHeader('X-Content-Type-Options','nosniff');
-  const allowed=process.env.HIKONE_ALLOWED_ORIGIN;
-  if(!allowed || !/^https?:\/\/[^/]+$/.test(allowed)) {res.status(503).json({error:'API not configured'});return false;}
-  if(header(req,'origin')!==allowed) {res.status(403).json({error:'Origin not allowed'});return false;}
-  res.setHeader('Access-Control-Allow-Origin',allowed);res.setHeader('Access-Control-Allow-Headers','Content-Type');res.setHeader('Access-Control-Allow-Methods','POST, OPTIONS');
+  // New Hikone2 deployments allow only their own Vercel host or an explicitly
+  // configured exact origin; never trust the caller's Host/X-Forwarded-Host.
+  const allowedOrigins=new Set<string>();
+  const configured=process.env.HIKONE_ALLOWED_ORIGIN;
+  if(configured&&/^https:\/\/[^/]+$/.test(configured))allowedOrigins.add(configured);
+  if(process.env.VERCEL==='1'){
+    for(const host of [process.env.VERCEL_URL,process.env.VERCEL_PROJECT_PRODUCTION_URL]){
+      if(host&&/^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.vercel\.app$/i.test(host))allowedOrigins.add('https://'+host);
+    }
+  }
+  if(!allowedOrigins.size){res.status(503).json({error:'API not configured'});return false;}
+  const origin=header(req,'origin');
+  if(!allowedOrigins.has(origin)){res.status(403).json({error:'Origin not allowed'});return false;}
+  res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Access-Control-Allow-Headers','Content-Type');res.setHeader('Access-Control-Allow-Methods','POST, OPTIONS');
   if(req.method==='OPTIONS') {res.status(204).end();return false;}
   if(req.method!=='POST') {res.setHeader('Allow','POST, OPTIONS');res.status(405).json({error:'Method not allowed'});return false;}
   if(header(req,'content-type').split(';')[0].trim().toLowerCase()!=='application/json') {res.status(415).json({error:'JSON required'});return false;}

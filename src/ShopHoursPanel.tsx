@@ -12,7 +12,7 @@ export default function ShopHoursPanel(){
  const pending=useRef<AbortController|null>(null);
  const check=async()=>{
   if(checking)return;
-  const endpoint=import.meta.env.VITE_SHOP_HOURS_ENDPOINT?.trim()||(import.meta.env.DEV?'/api/shop-hours':'');
+  const endpoint=import.meta.env.VITE_SHOP_HOURS_ENDPOINT?.trim()||(import.meta.env.DEV||import.meta.env.BASE_URL==='/'?'/api/shop-hours':'');
   if(!endpoint){setNotice('営業情報の自動確認は現在設定されていません。各店舗の公式掲載情報をご確認ください。');return;}
   pending.current?.abort();
   const controller=new AbortController();pending.current=controller;setChecking(true);

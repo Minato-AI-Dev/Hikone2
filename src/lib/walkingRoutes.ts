@@ -14,7 +14,7 @@ export async function autoRecommend(answers:Answers,history:HistoryState|null,_o
     return {recommendations:[],source:'unavailable',warning:'出発地・帰着地・残り時間を確認してください。'};
   const candidates=routingCandidateIds(answers,history);
   if(!candidates.length)return {recommendations:[],source:'unavailable',warning:'現在の条件に合う候補がありません。'};
-  const endpoint=import.meta.env.VITE_WALKING_ROUTE_ENDPOINT?.trim() || (import.meta.env.DEV?'/api/walking-routes':'');
+  const endpoint=import.meta.env.VITE_WALKING_ROUTE_ENDPOINT?.trim() || (import.meta.env.DEV||import.meta.env.BASE_URL==='/'?'/api/walking-routes':'');
   if(!endpoint)return fallback('現在、徒歩経路を取得できません。');
   const pairs=[{from:answers.currentNodeId,to:answers.finalNodeId},...candidates.flatMap(id=>[{from:answers.currentNodeId,to:id},{from:id,to:answers.finalNodeId}])].filter(p=>p.from!==p.to);
   const unique=[...new Map(pairs.map(p=>[p.from+'>'+p.to,p])).values()];

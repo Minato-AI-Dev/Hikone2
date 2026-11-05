@@ -32,9 +32,9 @@ beforeEach(()=>{
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});
 describe('isolated preview analytics',()=>{
  it('adds, reports and deletes test counts while preserving research data',async()=>{
-  const productionKey='hikone:aggregate:v1:2026-10-28:recommendation_viewed';counters.set(productionKey,7);
+  const productionKey='hikone2:aggregate:v1:2026-10-28:recommendation_viewed';counters.set(productionKey,7);
   const r=response();await collect(request(),r);expect(r.code).toBe(200);
-  const testKey=[...counters.keys()].find(k=>k.startsWith('hikone:aggregate:test:'))!;
+  const testKey=[...counters.keys()].find(k=>k.startsWith('hikone2:aggregate:test:'))!;
   const day=testKey.split(':').at(-2)!;
   const s=response();await report(read(day),s);expect(s.code).toBe(200);expect(s.body.testRun).toBe(run);
   expect(s.body.counts.recommendation_viewed).toBe(1);
@@ -42,7 +42,7 @@ describe('isolated preview analytics',()=>{
   const after=response();await report(read(day),after);expect(Object.values(after.body.counts).every(n=>n===0)).toBe(true);
   expect(counters.get(productionKey)).toBe(7);
   const del=commands.find(c=>c[0]==='DEL')!;expect(del).toHaveLength(AGGREGATE_EVENTS.length+1);
-  expect(del.slice(1).every(k=>k.startsWith('hikone:aggregate:test:v1:'+run+':'+day+':'))).toBe(true);
+  expect(del.slice(1).every(k=>k.startsWith('hikone2:aggregate:test:v1:'+run+':'+day+':'))).toBe(true);
  });
  it('expires test counters atomically after 24 hours',async()=>{
   const r=response();await collect(request(),r);const cmd=commands.find(c=>c[2]==='1')!;
@@ -50,10 +50,10 @@ describe('isolated preview analytics',()=>{
  });
  it('separates preview rate-limit keys too',async()=>{
   expect(await reserveBudget(request(),'analytics',1)).toBe('allowed');
-  expect(commands[0].slice(3,6).every(k=>k.startsWith('hikone:aggregate:test:v1:'+run+':limit:'))).toBe(true);
+  expect(commands[0].slice(3,6).every(k=>k.startsWith('hikone2:aggregate:test:v1:'+run+':limit:'))).toBe(true);
  });
  it.each(['routes','ai'] as const)('keeps %s limiter keys unchanged',async service=>{
-  await reserveBudget(request(),service,1);expect(commands[0][3]).toMatch(new RegExp('^hikone:'+service+':ip:'));
+  await reserveBudget(request(),service,1);expect(commands[0][3]).toMatch(new RegExp('^hikone2:'+service+':ip:'));
  });
  it('marks the preview dashboard',()=>{
   const r=response();dashboard({method:'GET',headers:{}},r);expect(r.code).toBe(200);expect(r.body).toContain('テスト専用');expect(r.body).toContain(run);
@@ -70,8 +70,8 @@ describe('isolated preview analytics',()=>{
   const r=response();await report(read(day,'DELETE'),r);expect(r.code).toBe(400);expect(fetch).not.toHaveBeenCalled();
  });
  it('does not let query parameters choose another namespace',async()=>{
-  const r=response();await report({...read('2026-10-28','DELETE'),query:{day:'2026-10-28',testRun:'research',key:'hikone:aggregate:v1:*'}},r);
-  expect(r.code).toBe(200);expect(commands.find(cmd=>cmd[0]==='DEL')!.slice(1).every(k=>k.startsWith('hikone:aggregate:test:v1:'+run+':'))).toBe(true);
+  const r=response();await report({...read('2026-10-28','DELETE'),query:{day:'2026-10-28',testRun:'research',key:'hikone2:aggregate:v1:*'}},r);
+  expect(r.code).toBe(200);expect(commands.find(cmd=>cmd[0]==='DEL')!.slice(1).every(k=>k.startsWith('hikone2:aggregate:test:v1:'+run+':'))).toBe(true);
  });
  it('returns a controlled storage error on cleanup failure',async()=>{
   vi.mocked(fetch).mockRejectedValue(new Error('do not expose secret'));
@@ -79,9 +79,9 @@ describe('isolated preview analytics',()=>{
  });
  it('preserves production keys, limiter and read-only methods',async()=>{
   vi.stubEnv('VERCEL_ENV','production');vi.stubEnv('HIKONE_ANALYTICS_TEST_RUN','');
-  expect(analyticsTestRun()).toBeNull();expect(metricKey('2026-10-28','app_open')).toBe('hikone:aggregate:v1:2026-10-28:app_open');
+  expect(analyticsTestRun()).toBeNull();expect(metricKey('2026-10-28','app_open')).toBe('hikone2:aggregate:v1:2026-10-28:app_open');
   const r=response();await collect(request(),r);expect(r.code).toBe(200);
-  expect(commands[0][3]).toMatch(/^hikone:analytics:ip:/);expect(commands[1][0]).toBe('INCR');
+  expect(commands[0][3]).toMatch(/^hikone2:analytics:ip:/);expect(commands[1][0]).toBe('INCR');
   commands=[];const d=response();await report(read('2026-10-28','DELETE'),d);expect(d.code).toBe(405);expect(commands).toEqual([]);
  });
  it('fails closed if a test run is mistakenly configured on production',async()=>{
