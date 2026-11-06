@@ -1,0 +1,21 @@
+name: One-time Hikone2 cloud AI verification
+
+on:
+  push:
+    branches: ["verify/cloud-ai-20261106"]
+    paths: [".github/workflows/ai-smoke-once.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify Hikone2 cloud AI extract and present
+        run: node scripts/ai-smoke-once.mjs
