@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { actions, nodeById, tagNames } from './data/dbV4';
 import { Answers, HistoryState, Recommendation } from './types';
 import { addValidation, completeExperience, historyIsTemporary, loadHistory, startExperience } from './lib/history';
@@ -12,8 +12,10 @@ import ShopHoursPanel from './ShopHoursPanel';
 import DestinationCatalog from './DestinationCatalog';
 import HikoneAI from './HikoneAI';
 import { provisionalActions } from './data/provisionalWalking';
+const QrScanner=lazy(()=>import('./QrScanner'));
 
-type Screen='home'|'questions'|'results'|'detail'|'go'|'done'|'catalog'|'ai'|'history';
+
+type Screen='home'|'questions'|'results'|'detail'|'go'|'done'|'catalog'|'ai'|'history'|'qr'|'qr-result'|'qr-checkin';
 const defaultAnswers:Answers={currentNodeId:'S01',finalNodeId:'D01',remainingTimeMin:35,interestTagIds:[],availableMode:'徒歩',maxWalkMin:null,detourPreference:'少しなら',discoveryOptIn:true,firstVisit:true,walkingPace:'standard',walkingConditions:'normal'};
 type GPSPosition={lat:number;lng:number;accuracy:number};
 function getGps():Promise<GPSPosition>{
@@ -40,6 +42,8 @@ export default function App(){
  const [answers,setAnswers]=useState<Answers>(defaultAnswers);
  const [recs,setRecs]=useState<Recommendation[]>([]);
  const [selected,setSelected]=useState<Recommendation|null>(null);
+ const [lastQr,setLastQr]=useState('');
+ const [qrMatched,setQrMatched]=useState(false);
  const [helpful,setHelpful]=useState<'great'|'okay'|'not'>('great');
  const [counter,setCounter]=useState<'no'|'probablyNo'|'yes'>('probablyNo');
  const [gps,setGps]=useState<GPSPosition|null>(null);
@@ -80,9 +84,10 @@ export default function App(){
  };
  const beginQuestions=()=>{setStep(0);setAnswers(a=>({...a,firstVisit:!history}));setScreen('questions');track('questionnaire_started')};
  const selectRec=(r:Recommendation)=>{setSelected(r);setScreen('detail');track('recommendation_selected',{id:r.id,detourMinutes:r.detourMinutes})};
- const beginExperience=()=>{if(!selected)return;const h=startExperience({experienceId:selected.actionId,startedAt:new Date().toISOString(),completed:false},answers);setHistory(h);setTemporaryHistory(historyIsTemporary());setScreen('go');track('experience_started',{id:selected.actionId,detourMinutes:selected.detourMinutes})};
+ const beginExperience=()=>{if(!selected)return;setQrMatched(false);const h=startExperience({experienceId:selected.actionId,startedAt:new Date().toISOString(),completed:false},answers);setHistory(h);setTemporaryHistory(historyIsTemporary());setScreen('go');track('experience_started',{id:selected.actionId,detourMinutes:selected.detourMinutes})};
  const markCompleted=(ok:boolean)=>{if(!selected)return;if(ok){const h=completeExperience(selected.actionId);setHistory(h);setTemporaryHistory(historyIsTemporary());setScreen('done');track('experience_completed',{id:selected.actionId,method:'manual'})}else{setScreen('home');track('experience_not_completed',{id:selected.actionId})}};
- const reset=()=>{setSelected(null);setRecs([]);setScreen('home')};
+ const reset=()=>{setSelected(null);setRecs([]);setLastQr('');setQrMatched(false);setScreen('home')};
+ const openQr=()=>{setLastQr('');setScreen('qr');track('qr_scanner_opened');};
 
  const chooseResearch=(enabled:boolean)=>{
   recordAnalyticsChoice(enabled);setConsent(enabled);setNeedsConsentChoice(false);beginQuestions();
@@ -111,19 +116,28 @@ export default function App(){
     <div className="full-journey-choices" aria-label="ほかの探し方">
      <button className="secondary" onClick={()=>{track('hikone_ai_opened');setScreen('ai')}}>AIに相談する<span>今の希望を文章で伝える（クラウドAIは任意）</span></button>
      <button className="secondary" onClick={()=>setScreen('catalog')}>場所から探す<span>営業時間が未確認の候補も含めて探す</span></button>
+     <button className="secondary" onClick={openQr}>QRコードを読み取る<span>QRの内容をカメラで確認する</span></button>
      <button className="secondary" onClick={()=>setScreen('history')}>旅の記録を見る<span>この端末に残した寄り道の履歴</span></button>
     </div>
    </section>}
 
    {screen==='catalog'&&<DestinationCatalog onBack={reset}/>}
+   {screen==='qr'&&<Suspense fallback={<section><p role="status">QRリーダーを準備しています…</p></section>}><QrScanner mode="read" onDecoded={code=>{setLastQr(code.slice(0,2048));setScreen('qr-result')}} onCancel={reset}/></Suspense>}
+   {screen==='qr-result'&&<section className="qr-result-page">
+    <p className="eyebrow">QRコード読み取り結果</p><h2>読み取った内容</h2>
+    <p className="note">QRに書かれた文字列を表示しています。リンクは自動で開きません。読み取っただけで現地訪問を確認したことにはなりません。</p>
+    <p className="qr-result-value">{lastQr}</p>
+    <button className="secondary" onClick={openQr}>別のQRを読み取る</button>
+    <button className="link" onClick={reset}>ホームへ戻る</button>
+   </section>}
    {screen==='ai'&&<HikoneAI
     answers={answers} history={history}
-    onResolved={(nextAnswers,recommendations,intro,_source,routing)=>{
+    onResolved={(nextAnswers,recommendations,intro,source,routing)=>{
      setAnswers(nextAnswers);
      setRecs(recommendations);
      setRoutingBusy(false);
      setRoutingSource(routing.source);
-     setRoutingNotice([intro,routing.warning].filter(Boolean).join(' '));
+     setRoutingNotice([source==='fallback'?'クラウドAIの応答が使えなかったため、文章のキーワードから条件を簡易解析しました。':'AIが文章から条件を整理しました。',intro,routing.warning].filter(Boolean).join(' '));
      if(recommendations.length>0)track('recommendation_viewed',{count:recommendations.length,currentNodeId:nextAnswers.currentNodeId,finalNodeId:nextAnswers.finalNodeId});
      setScreen('results');
     }}
@@ -137,7 +151,7 @@ export default function App(){
       {[...history.visitHistory].reverse().map((visit,i)=>{
        const activity=[...actions,...provisionalActions].find(a=>a.id===visit.experienceId);
        return <article className="history-item" key={visit.experienceId+'-'+visit.startedAt+'-'+i}>
-        <strong>{activity?friendlyAction(activity.type):'寄り道の記録'}</strong>
+        <strong>{activity?friendlyNodeName(nodeById(activity.nodeId)?.name||'寄り道')+'：'+friendlyAction(activity.type):'寄り道の記録'}</strong>
         <p className="note">{new Date(visit.startedAt).toLocaleDateString('ja-JP')} ／ {visit.completed?'行ってきた（自己申告）':'未完了'}</p>
        </article>;
       })}
@@ -202,10 +216,14 @@ export default function App(){
     <div className="time-big">+{selected.detourMinutes}分</div>
     <MapEmbed placeName={selected.nodeName}/>
     <a className="secondary anchor map-open" href={googleMapsDirectionsUrl(gps?gps.lat+','+gps.lng:currentName,selected.nodeName,finalName)} target="_blank" rel="noopener noreferrer" onClick={()=>track('navigation_clicked',{id:selected.actionId,from:'go'})}>Google Mapsで経路案内を開く ↗</a>
-    <div className="checkpoint-box"><b>寄り道できたら</b><p>戻って「行ってきた」を押してください。寄り道の記録が残ります。</p></div>
+    <div className="checkpoint-box"><b>寄り道できたら</b><p>戻って「行ってきた」を押してください。寄り道の記録が残ります。</p><p className="note">QRの照合は任意の試験機能です。現地でのQR設置・真正性確認が済むまでは、本人申告の訪問履歴として扱います。</p></div>
+    {qrMatched&&<p role="status" className="gps-notice">この寄り道のQR文字列と一致しました（場所に到着した証明ではありません）。</p>}
+    <button className="secondary" onClick={()=>{setScreen('qr-checkin');track('qr_scanner_opened')}}>現地QRを読み取る（試験用）</button>
     <button className="primary" onClick={()=>markCompleted(true)}>行ってきた</button>
     <button className="link" onClick={()=>markCompleted(false)}>今回は行かなかった</button>
    </section>}
+
+   {screen==='qr-checkin'&&selected&&<Suspense fallback={<section><p role="status">QRリーダーを準備しています…</p></section>}><QrScanner mode="checkpoint" experienceId={selected.actionId} experienceName={friendlyNodeName(selected.nodeName)} onMatched={()=>{setQrMatched(true);setScreen('go')}} onCancel={()=>setScreen('go')}/></Suspense>}
 
    {screen==='done'&&selected&&<section className="center">
     <p className="eyebrow">おかえりなさい</p>
