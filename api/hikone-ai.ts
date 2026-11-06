@@ -8,7 +8,17 @@ function parseJson(text:string):JsonRecord{return JSON.parse(text.trim().replace
 async function callOpenAI(instructions:string,input:string){
  const key=process.env.OPENAI_API_KEY,model=process.env.OPENAI_MODEL;if(!key||!model)throw new Error('AI env missing');
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
- try{const r=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({model,instructions,input,max_output_tokens:800,store:false})});if(!r.ok)throw new Error('AI unavailable');const d=await r.json(),t=outputText(d);if(!t)throw new Error('No output');return parseJson(t)}finally{clearTimeout(timer)}
+ try{const r=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({model,instructions,input,max_output_tokens:800,store:false})});if(!r.ok){
+    const upstream=await r.json().catch(()=>({}));
+    // Log only the status and a constrained error code. Never log tokens or prompts.
+    const rawCode=upstream?.error?.code;
+    const safeCode=typeof rawCode==='string'&&/^[a-zA-Z0-9_-]{1,64}$/.test(rawCode)?rawCode:'unknown';
+    console.warn('[Hikone2 AI] OpenAI upstream status',r.status,'code',safeCode);
+    throw new Error('AI unavailable');
+   }
+   const d=await r.json(),t=outputText(d);
+   if(!t){console.warn('[Hikone2 AI] OpenAI returned no text');throw new Error('No output');}
+   try{return parseJson(t)}catch{console.warn('[Hikone2 AI] OpenAI returned invalid JSON');throw new Error('Invalid AI JSON');}}finally{clearTimeout(timer)}
 }
 export default async function handler(req:ApiRequest,res:ApiResponse){
  if(!prepareJson(req,res))return;
