@@ -35,6 +35,10 @@ try{
  await page.getByRole('button',{name:/AIに相談する/}).click();
  await assert(page.getByRole('heading',{name:'今の気分を教えてください。'}),'AI screen');
  await page.getByRole('button',{name:'戻る'}).click();
+ await page.getByRole('button',{name:/QRコードを読み取る/}).click();
+ await assert(page.getByRole('heading',{name:'QRコードを読み取る'}),'QR reader screen');
+ await page.getByRole('button',{name:'読み取りをやめる'}).click();
+ await assert(page.getByRole('heading',{name:/彦根に寄り道しませんか/}),'return from QR');
  await page.getByRole('button',{name:/場所から探す/}).click();
  await assert(page.getByRole('heading',{name:'次は、どんな彦根を見る？'}),'catalog');
  await page.getByPlaceholder('例：仏壇、ひこにゃん、芹川、近代建築').fill('芹川');
@@ -51,7 +55,7 @@ try{
  if(errors.length)throw Error('Client-side errors: '+errors.join(' | '));
  if(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+2))
   throw Error('Horizontal overflow in iPhone viewport');
- console.log('PASS: mobile Chromium workflow (consent, questions, AI, catalog, history, safe API-unconfigured fallback).');
+ console.log('PASS: mobile Chromium workflow (consent, questions, AI, catalog, history, safe routing fallback, QR entry).');
  await context.close();
 }finally{
  await browser?.close();

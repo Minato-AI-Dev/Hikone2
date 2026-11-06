@@ -31,14 +31,14 @@ const routingBody={pairs:[{from:'S01',to:'D01'}]};
 const blocked=await fetchTimeout('/api/walking-routes',{...json(routingBody),headers:{'Origin':'https://hikone-routes.vercel.app','Content-Type':'application/json'}});
 assert(blocked.status===403,'Hikone1 origin must be denied (actual='+blocked.status+')');
 console.log('PASS old Hikone1 Vercel origin rejected (403)');
-const valid=await fetchTimeout('/api/walking-routes',json(routingBody));
-assert(valid.status===503,'Hikone2 missing paid Maps credentials should fail closed (actual='+valid.status+')');
-console.log('PASS independent routing API is deployed and safely unavailable without own Google key (503)');
-const ai=await fetchTimeout('/api/hikone-ai',json({mode:'extract-v4',message:'あと35分で彦根駅に戻りたい'}));
-assert(ai.status===503,'Hikone2 AI should fail closed without its own credentials (actual='+ai.status+')');
-console.log('PASS independent AI API safely unavailable without its own OpenAI key (503)');
-const shops=await fetchTimeout('/api/shop-hours',json({shopIds:['SHOP001']}));
-assert(shops.status===200,'Shop-status reference API should return unknown without credentials (actual='+shops.status+')');
-const data=await shops.json();
-assert(data?.results?.length===1&&data.results[0].status==='unknown','Shop-status must not claim open');
-console.log('PASS independent shop-hours API reports unknown rather than inventing availability');
+// Test input validation without making a billable Google/OpenAI/Places request.
+const routeInvalid=await fetchTimeout('/api/walking-routes',json({pairs:[]}));
+assert(routeInvalid.status===400,'Independent walking route API must validate requests (actual='+routeInvalid.status+')');
+console.log('PASS independent routing API validates input (400)');
+const aiInvalid=await fetchTimeout('/api/hikone-ai',json({mode:'wrong',message:'hello'}));
+assert(aiInvalid.status===400,'Independent AI API must validate requests (actual='+aiInvalid.status+')');
+console.log('PASS independent AI API validates input (400)');
+const shopInvalid=await fetchTimeout('/api/shop-hours',json({shopIds:['NOT_A_SHOP']}));
+assert(shopInvalid.status===400,'Shop-status API must reject unrecognized shops (actual='+shopInvalid.status+')');
+console.log('PASS independent shop API rejects unknown IDs');
+
